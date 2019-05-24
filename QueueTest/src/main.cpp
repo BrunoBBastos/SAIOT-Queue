@@ -2,6 +2,8 @@
 // Enviar os dados computados ao sistema
 // Extrair dados da fila e publicá-los
 
+// Não está pegando data e hora
+
 #include <Arduino.h>
 #include <QueueList.h>      // Fila <<< SUBSTITUIR PELA STD QUEUE
 #include <Ticker.h>         // Timer
@@ -14,7 +16,8 @@
 struct data // Conjunto de informações a serem enviadas
 {
   int value;
-  unsigned long time;
+  String time;
+  //unsigned long time;
 };
 
 volatile int pulseCounter = 0; // Contador de pulsos do sensor
@@ -28,15 +31,15 @@ Ticker PushData;
 Ticker SendQ;
 
 WiFiClient espClient;
-SaIoTDeviceLib hidrometro("Hidrometro", "230519Tst", "ricardodev@email.com");
+SaIoTDeviceLib hidrometro("Hidrometro", "230519Tst", "ricardo@email.com");
 SaIoTSensor medidorAgua("hd01", "hidrometro_01", "Litros", "number");
 String senha = "12345678910";
 void callback(char *topic, byte *payload, unsigned int length);
 
-void sendData2Saiot(int d, int t)
+void sendData2Saiot(int d, String t)
 { // Enviar dados
   //String dateTime = SaIoTCom::getDateNow();
-  medidorAgua.sendData((d), String(t));
+  medidorAgua.sendData((d), t);
 }
 
 void pulseRead()
@@ -56,9 +59,10 @@ void pushQ()
 { // Preenche a fila
   if (pulseCounter > 0)
   { // Apenas se houverem dados
+  String dateTime = SaIoTCom::getDateNow();
     data d;
     d.value = pulseCounter;
-    d.time = millis() / 1000; // (Teste) Pegar a hora do SAIOT <<< CORRIGIR
+    d.time = dateTime;//millis() / 1000; // (Teste) Pegar a hora do SAIOT <<< CORRIGIR
     dataQ.push(d);            // Armazena os dados na lista
     pulseCounter = 0;         // Reseta contador
     ready = true;             // Indica existência de dados prontos para envio
@@ -112,4 +116,17 @@ void loop()
 
   //sendData2Saiot();
   hidrometro.handleLoop();
+}
+
+
+void callback(char* topic, byte* payload, unsigned int length){
+  String payloadS;
+  Serial.print("Topic: ");
+  Serial.println(topic);
+  for (unsigned int i=0;i<length;i++) {
+    payloadS += (char)payload[i];
+  }
+  if(strcmp(topic,hidrometro.getSerial().c_str()) == 0){
+    Serial.println("SerialLog: " + payloadS);
+  }
 }
