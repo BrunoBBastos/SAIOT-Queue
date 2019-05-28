@@ -2,15 +2,21 @@
 // Enviar os dados computados ao sistema
 // Extrair dados da fila e publicá-los
 
-// Não está pegando data e hora
+/*  Não está pegando data e hora ==> CORRIGIDO
+          O método não funciona dentro de interrupções. Foram criadas 'flags' que chamam as funções a partir do loop
+    Está enviando apenas o último elemento da fila ==> CORRIGIDO
+          A perda de dados acontecia graças ao while que tentava enviar todos os dados de uma vez
+          A partir do método o método handleLoop() é possível enviar apenas um dado por loop
+          O while foi substituido por um if que testa se há elementos na fila uma vez por loop
+*/
 
 #include <Arduino.h>
 #include <QueueList.h>      // Fila <<< SUBSTITUIR PELA STD QUEUE
 #include <Ticker.h>         // Timer
 #include <SaIoTDeviceLib.h> // Saiot
 
-#define PUSH_INTERVAL 2 // Intervalo entre pacotes de pulsos
-#define SEND_INTERVAL 4 // Intervalo entre envios
+#define PUSH_INTERVAL 1 // Intervalo entre pacotes de pulsos
+#define SEND_INTERVAL 2 // Intervalo entre envios
 #define SENSOR_PIN D3   // Porta do sensor
 #define DEBOUNCE_DELAY 250 // Intervalo entre leituras válidas de cada pulsos
 struct data // Conjunto de informações a serem enviadas
@@ -38,12 +44,6 @@ SaIoTDeviceLib hidrometro("Hidrometro", "230519Tst", "ricardo@email.com");
 SaIoTSensor medidorAgua("hd01", "hidrometro_01", "Litros", "number");
 String senha = "12345678910";
 void callback(char *topic, byte *payload, unsigned int length);
-
-void sendData2Saiot(int d, String t)
-{ // Enviar dados
-  //String dateTime = SaIoTCom::getDateNow();
-  medidorAgua.sendData((d), t);
-}
 
 void pulseRead()
 {                                        // Leitura de pulsos do sensor
@@ -85,22 +85,28 @@ void popQflag(){
 time2Pop = true;
 }
 
+void sendData2Saiot(int d, String t)
+{ // Enviar dados
+  medidorAgua.sendData((d), t);
+}
+
 void popQ()
 {
  
   if (wifiSt && ready)
   { // Se houverem dados prontos e WIFI disponível
-    while (dataQ.count() > 0)
+    if (dataQ.count() > 0)
     {                          // Enquanto houverem elementos na fila
       data out = dataQ.pop();  // Retira o primeiro dado da fila
-        sendData2Saiot(out.value, out.time); // Envia
+      sendData2Saiot(out.value, out.time); // Envia
       Serial.print(out.value); 
       Serial.print('\t');
       Serial.println(out.time);
-    
     }
-    ready = false; // Reseta a flag
-    time2Pop = false;
+    else {
+       time2Pop = false;
+       ready = false; // Reseta a flag
+    }
   }
 }
 
@@ -135,7 +141,6 @@ void loop()
 
   hidrometro.handleLoop();
 }
-
 
 void callback(char* topic, byte* payload, unsigned int length){
   String payloadS;
