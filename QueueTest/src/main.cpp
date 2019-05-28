@@ -22,8 +22,11 @@ struct data // Conjunto de informações a serem enviadas
 
 volatile int pulseCounter = 0; // Contador de pulsos do sensor
 
-bool wifiSt = false; // Estado da conexão WIFI(teste)
+bool wifiSt = true; // Estado da conexão WIFI(teste)
 bool ready = false;  // Indica se há dados a serem enviados
+bool time2Push = false, time2Pop = false;
+
+int total = 0; // Teste
 
 QueueList<data> dataQ; // Lista FIFO
 
@@ -49,7 +52,10 @@ void pulseRead()
   if (debounce - lastDebounce > DEBOUNCE_DELAY)
   { // Se intervalo entre chamadas for maior que intervalo de leituras válidas
     pulseCounter++;
-    Serial.print("\t \t \t +1 \t"); // (Teste)
+    total++;
+    Serial.print("\t \t \t \t"); // (Teste)
+    Serial.print(total);
+    Serial.print("\t");
     Serial.println(debounce);
   }
   lastDebounce = debounce; // Reseta a última marcação de tempo
@@ -59,31 +65,42 @@ void pushQ()
 { // Preenche a fila
   if (pulseCounter > 0)
   { // Apenas se houverem dados
-  String dateTime = SaIoTCom::getDateNow();
+    String dateTime;
+    dateTime = SaIoTCom::getDateNow();
     data d;
     d.value = pulseCounter;
     d.time = dateTime;//millis() / 1000; // (Teste) Pegar a hora do SAIOT <<< CORRIGIR
     dataQ.push(d);            // Armazena os dados na lista
     pulseCounter = 0;         // Reseta contador
     ready = true;             // Indica existência de dados prontos para envio
+    time2Push = false; // Indica que o dado foi criado e depositado na fila
   }
+}
+
+void pushQflag(){
+time2Push = true;
+}
+
+void popQflag(){
+time2Pop = true;
 }
 
 void popQ()
 {
-  //if (ready && !wifiSt) // (Teste)
-   // Serial.println("waiting for wifi");
+ 
   if (wifiSt && ready)
   { // Se houverem dados prontos e WIFI disponível
     while (dataQ.count() > 0)
     {                          // Enquanto houverem elementos na fila
       data out = dataQ.pop();  // Retira o primeiro dado da fila
-      //Serial.print(out.value); // Envia
-      //Serial.print('\t');
-      //Serial.println(out.time);
-      sendData2Saiot(out.value, out.time);
+        sendData2Saiot(out.value, out.time); // Envia
+      Serial.print(out.value); 
+      Serial.print('\t');
+      Serial.println(out.time);
+    
     }
     ready = false; // Reseta a flag
+    time2Pop = false;
   }
 }
 
@@ -101,8 +118,8 @@ void setup()
   // Associa interrupção ext ao pino do sensor
   attachInterrupt(digitalPinToInterrupt(SENSOR_PIN), pulseRead, RISING);
 
-  PushData.attach(PUSH_INTERVAL, pushQ); // Inicializa timer de armazenamento
-  SendQ.attach(SEND_INTERVAL, popQ);     // Inicializa timer de envio
+  PushData.attach(PUSH_INTERVAL, pushQflag); // Inicializa timer de armazenamento
+  SendQ.attach(SEND_INTERVAL, popQflag);     // Inicializa timer de envio
 }
 
 void loop()
@@ -113,8 +130,9 @@ void loop()
     if (c == 'w')
       wifiSt = !wifiSt;
   }
+  if(time2Push) pushQ();
+  if(time2Pop) popQ();
 
-  //sendData2Saiot();
   hidrometro.handleLoop();
 }
 
